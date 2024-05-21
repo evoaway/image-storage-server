@@ -21,14 +21,26 @@ class AlbumController {
             const userId = req.user.id;
             const albumContainer = await getContainer('Albums');
             const { resources: albums } = await albumContainer.items.query({
-                query: 'SELECT c.id, c.classname, c.sharedWith FROM c WHERE c.userId = @userId',
+                query: 'SELECT c.id, c.class, c.sharedWith FROM c WHERE c.userId = @userId',
                 parameters: [{ name: '@userId', value: userId }]
             }).fetchAll();
             return res.status(200).json({ status: 'success', albums: albums });
         } catch (e) {
             res.status(500).json({status: 'error', message: e.message})
         }
-
+    }
+    async getSharedWitMe(req, res) {
+        try {
+            const userId = req.user.id;
+            const albumContainer = await getContainer('Albums');
+            const { resources: albums } = await albumContainer.items.query({
+                query: 'SELECT c.id, c.class FROM c WHERE ARRAY_CONTAINS(c.sharedWith,@userId)',
+                parameters: [{ name: '@userId', value: userId }]
+            }).fetchAll();
+            return res.status(200).json({ status: 'success', albums: albums });
+        } catch (e) {
+            res.status(500).json({status: 'error', message: e.message})
+        }
     }
     async getAlbumImages(req, res) {
         try {
