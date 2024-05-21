@@ -1,36 +1,16 @@
 const {
     containerClient,
-    computerVisionClient,
-    getContainer, blobServiceClient
+    getContainer, cvClient
 } = require('../azure');
 const { v4: uuidv4} = require('uuid');
 const sharp = require("sharp");
 const path = require('path');
 
-async function readText(imageId, imageUrl) {
-    try {
-        const readResult = await computerVisionClient.recognizePrintedText(true,imageUrl)
-        let resultText = []
-        readResult.regions[0].lines.forEach(line => {
-            line.words.forEach(word => {
-                resultText.push(word.text)
-            })
-        })
-        const container = await getContainer('Images');
-        const { resource: image } = await container.item(imageId).read();
-        if (image) {
-            image['text'] = resultText;
-            await container.item(imageId).replace(image);
-        }
-    } catch (e) {
-        console.error(e)
-    }
-}
 async function addItemToArray(classname, imageId, blobName, userId) {
     try {
         const albumContainer = await getContainer('Albums');
         const { resources: album } = await albumContainer.items.query({
-            query: 'SELECT * FROM c WHERE c.classname = @classname AND c.userId = @userId',
+            query: 'SELECT * FROM c WHERE c.class = @classname AND c.userId = @userId',
             parameters: [{ name: '@classname', value: classname }, {name: '@userId', value: userId}]
         }).fetchAll();
         const existAlbum = album[0]
@@ -71,9 +51,29 @@ class ImageController {
                 await blockBlobClient.uploadData(imageBuffer);
                 const imageUrl = blockBlobClient.url;
 
-                const tags = await computerVisionClient.tagImage(imageUrl)
-                const classResult = tags.tags[0]?.name || 'unknown';
-                const metadata = tags.metadata
+                const result = await cvClient.path('/imageanalysis:analyze').post({
+                    body: {
+                        url: imageUrl
+                    },
+                    queryParameters: {
+                        features: ['Tags', 'Read']
+                    },
+                    contentType: 'application/json'
+                });
+                let tags = []
+                const classResult = result.body.tagsResult.values[0]?.name || 'unknown';
+                result.body.tagsResult.values.forEach(value => {
+                    tags.push(value.name)
+                })
+                let resultText = []
+                if (result.body.readResult) {
+                    result.body.readResult.blocks.forEach(block => {
+                        block.lines.forEach(line => {
+                            resultText.push(line.text)
+                        })
+                    })
+                }
+                const metadata = result.body.metadata
                 return {
                     id: imageId,
                     type: 'image',
@@ -82,6 +82,8 @@ class ImageController {
                     blobName,
                     imageUrl,
                     class: classResult,
+                    tags:tags,
+                    text: resultText,
                     metadata,
                     size
                 };
@@ -94,7 +96,6 @@ class ImageController {
             for (const item of finalResult) {
                 await addItemToArray(item.resourceBody.class, item.resourceBody.id, item.resourceBody.blobName, id);
             }
-            results.map(item => (readText(item.id, item.imageUrl)))
         } catch (e) {
             console.error(e);
             res.status(500).json({status: 'error', message: e.message})
