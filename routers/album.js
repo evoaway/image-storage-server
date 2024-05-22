@@ -8,5 +8,6 @@ router.get('/:id', authMiddleware, albumController.getAlbumImages)
 router.get('/shared/me', authMiddleware, albumController.getSharedWitMe)
 router.put('/shared/:id', authMiddleware, albumController.addShared)
 router.delete('/shared/:id', authMiddleware, albumController.removeShared)
+router.get('/download/:id', authMiddleware, albumController.download)
 
 module.exports = router
