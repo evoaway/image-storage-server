@@ -61,7 +61,27 @@ class UserController {
         } catch (e) {
             res.status(500).json({status: 'error', message: e.message})
         }
-
+    }
+    async getMyInfo(req, res) {
+        try {
+            const userId = req.user.id;
+            const container = await getContainer('Users');
+            const { resource:user } = await container.item(userId).read();
+            const querySpec = {
+                query: 'SELECT SUM(c.size) FROM c WHERE c.userId = @userId',
+                parameters: [
+                    {
+                        name: '@userId',
+                        value: userId
+                    }
+                ]
+            };
+            const imageContainer = await getContainer('Images');
+            const { resources } = await imageContainer.items.query(querySpec).fetchAll();
+            return res.status(200).json({ status:'success', user: user, memory:resources[0] });
+        } catch (e) {
+            res.status(500).json({status: 'error', message: e.message})
+        }
     }
 }
 
