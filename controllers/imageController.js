@@ -185,6 +185,19 @@ class ImageController {
             res.status(500).json({status: 'error', message: e.message})
         }
     }
+    async changeName(req, res) {
+        try {
+            const id = req.params.id
+            const {newName} = req.body
+            const container = await getContainer('Images');
+            const {resource:image} = await container.item(id).read();
+            image.originalName = newName + path.extname(image.originalName)
+            const { resource: updatedImage } = await container.item(id).replace(image);
+            return res.status(200).json({status:'success',image:updatedImage});
+        } catch (e) {
+            res.status(500).json({status: 'error', message: e.message})
+        }
+    }
 }
 
 module.exports = new ImageController()
