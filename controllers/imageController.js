@@ -6,7 +6,7 @@ const { v4: uuidv4} = require('uuid');
 const sharp = require("sharp");
 const path = require('path');
 
-async function addItemToArray(classname, imageId, blobName, userId) {
+async function addItemToArray(classname, imageBlob, userId, userEmail) {
     try {
         const albumContainer = await getContainer('Albums');
         const { resources: album } = await albumContainer.items.query({
@@ -15,15 +15,14 @@ async function addItemToArray(classname, imageId, blobName, userId) {
         }).fetchAll();
         const existAlbum = album[0]
         if (existAlbum) {
-            existAlbum['images'].push(imageId);
-            existAlbum['imagesBlob'].push(blobName);
+            existAlbum['images'].push(imageBlob);
             await albumContainer.item(existAlbum.id).replace(existAlbum);
         } else {
             const newDocument = {
                 ['class']: classname,
-                ['images']: [imageId],
-                ['imagesBlob']: [blobName],
+                ['images']: [imageBlob],
                 ['userId']: userId,
+                ['userEmail']: userEmail,
                 ['sharedWith']: []
             };
             await albumContainer.items.create(newDocument);
@@ -37,6 +36,7 @@ class ImageController {
     async uploadImages(req, res) {
         try {
             const id = req.user.id;
+            const email = req.user.email
             const imageUploadPromises = req.files.map(async (file) => {
                 let imageBuffer = file.buffer;
                 if (file.size > 2000000) {
@@ -85,6 +85,7 @@ class ImageController {
                     tags:tags,
                     text: resultText,
                     metadata,
+                    date: new Date().toISOString(),
                     size
                 };
             });
@@ -94,7 +95,7 @@ class ImageController {
             const finalResult = await container.items.bulk(results.map(item => ({ operationType: 'Create', resourceBody: item })));
             res.status(200).json({status:'success'});
             for (const item of finalResult) {
-                await addItemToArray(item.resourceBody.class, item.resourceBody.id, item.resourceBody.blobName, id);
+                await addItemToArray(item.resourceBody.class, item.resourceBody.blobName, id, email);
             }
         } catch (e) {
             console.error(e);
@@ -169,13 +170,14 @@ class ImageController {
     }
     async search(req, res) {
         try {
-            const {name} = req.query
+            const {input: input, classname: classname} = req.query
             const id = req.user.id;
             const container = await getContainer('Images');
             const querySpec = {
-                query: "SELECT * FROM c WHERE CONTAINS(c.originalName, @name) AND c.userId = @userId",
+                query: "SELECT * FROM c WHERE c.userId=@userId AND c.class=@class AND (CONTAINS(c.originalName, @input) OR ARRAY_CONTAINS(c.tags, @input))",
                 parameters: [
-                    { name: "@name", value: name },
+                    { name: "@input", value: input },
+                    { name: "@class", value: classname },
                     { name: "@userId", value: id },
                 ]
             };
