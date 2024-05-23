@@ -91,7 +91,6 @@ class UserController {
             const container = await getContainer('Users');
             const { resource: user } = await container.item(userId).read();
             const body = req.body
-            console.log(body)
             if(body.email){
                 const querySpec = {
                     query: 'SELECT c.id FROM c WHERE c.email = @email',

@@ -39,7 +39,7 @@ class AlbumController {
             const userId = req.user.id;
             const albumContainer = await getContainer('Albums');
             const { resources: albums } = await albumContainer.items.query({
-                query: 'SELECT c.id, c.class, c.sharedWith FROM c WHERE c.userId = @userId',
+                query: 'SELECT c.id, c.className, c.sharedWith, c.date FROM c WHERE c.userId = @userId',
                 parameters: [{ name: '@userId', value: userId }]
             }).fetchAll();
             return res.status(200).json({ status: 'success', albums: albums });
@@ -52,7 +52,7 @@ class AlbumController {
             const userId = req.user.id;
             const albumContainer = await getContainer('Albums');
             const { resources: albums } = await albumContainer.items.query({
-                query: 'SELECT c.id, c.class, c.userEmail FROM c WHERE ARRAY_CONTAINS(c.sharedWith,@userId)',
+                query: 'SELECT c.id, c.className, c.userEmail FROM c WHERE ARRAY_CONTAINS(c.sharedWith,@userId)',
                 parameters: [{ name: '@userId', value: userId }]
             }).fetchAll();
             return res.status(200).json({ status: 'success', albums: albums });
@@ -68,7 +68,7 @@ class AlbumController {
             const ids = album.images;
             const container = await getContainer('Images');
             const querySpec = {
-                query: `SELECT c.id, c.originalName, c.imageUrl FROM c WHERE c.blobName IN (${ids.map((_, i) => `@id${i}`).join(', ')})`,
+                query: `SELECT c.id, c.originalName, c.imageUrl FROM c WHERE c.blobName IN (${ids.map((_, i) => `@id${i}`).join(', ')}) ORDER BY c.date DESC`,
                 parameters: ids.map((id, i) => ({ name: `@id${i}`, value: id }))
             };
             const { resources:images } = await container.items.query(querySpec).fetchAll();
@@ -101,7 +101,7 @@ class AlbumController {
         try {
             const id = req.params.id
             const {email} = req.body
-            const user = getUserByEmail(email)
+            const user = await getUserByEmail(email)
             if (!user) {
                 return res.status(404).json({message: "User not found"})
             }
@@ -120,12 +120,32 @@ class AlbumController {
             res.status(500).json({status: 'error', message: e.message})
         }
     }
+    async getSharedUsers(req, res) {
+        try {
+            const id = req.params.id
+            const albumContainer = await getContainer('Albums');
+            const { resource: album } = await albumContainer.item(id).read();
+            const sharedUsers = album.sharedWith
+            const container = await getContainer('Users');
+            if (!sharedUsers.length){
+                return res.status(200).json({status:'success', users:[]});
+            }
+            const querySpec = {
+                query: `SELECT c.id, c.email FROM c WHERE c.id IN (${sharedUsers.map((_, i) => `@id${i}`).join(', ')})`,
+                parameters: sharedUsers.map((id, i) => ({ name: `@id${i}`, value: id }))
+            };
+            const { resources:users } = await container.items.query(querySpec).fetchAll();
+            return res.status(200).json({status:'success', users:users});
+        } catch (e) {
+            res.status(500).json({status: 'error', message: e.message})
+        }
+    }
     async download(req, res) {
         try {
             const id = req.params.id
             const albumContainer = await getContainer('Albums');
             const { resource: album } = await albumContainer.item(id).read();
-            const imagesBlobs = album.imagesBlob
+            const imagesBlobs = album.images
             const images = await Promise.all(imagesBlobs.map(blobName => downloadBlob(blobName)));
 
             const archive = archiver('zip');
@@ -136,6 +156,34 @@ class AlbumController {
                 archive.append(image, { name: imagesBlobs[index] });
             });
             await archive.finalize();
+        } catch (e) {
+            res.status(500).json({status: 'error', message: e.message})
+        }
+    }
+    async delete(req, res) {
+        try {
+            const id = req.params.id
+            const albumContainer = await getContainer('Albums');
+            const { resource: album } = await albumContainer.item(id).read();
+            await albumContainer.item(id).delete()
+            const imagesBlobs = album.images
+            const querySpec = {
+                query: `SELECT c.id FROM c WHERE c.blobName IN (${imagesBlobs.map((_, i) => `@id${i}`).join(', ')})`,
+                parameters: imagesBlobs.map((id, i) => ({ name: `@id${i}`, value: id }))
+            };
+            const container = await getContainer('Images');
+            const { resources: images } = await container.items.query(querySpec).fetchAll();
+            const deleteInDb = images.map(async image => {
+                await container.item(image.id).delete();
+            });
+            await Promise.all(deleteInDb);
+
+            const deleteBlob = imagesBlobs.map(async (blobName) => {
+                const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+                await blockBlobClient.delete();
+            });
+            await Promise.all(deleteBlob);
+            return res.status(200).json({status:'success'})
         } catch (e) {
             res.status(500).json({status: 'error', message: e.message})
         }
