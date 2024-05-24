@@ -1,4 +1,3 @@
-const {getContainer} = require("../azure/azureConnections");
 const archiver = require('archiver');
 const AlbumService = require('../sevices/albumService')
 const {downloadBlob} = require("../azure/helpers");
