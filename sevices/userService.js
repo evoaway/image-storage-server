@@ -1,8 +1,7 @@
-const {getContainer} = require("../azure/azureConnections");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require('../models/userModel')
-const {getUsersContainer} = require("../azure/helpers");
+const {getUsersContainer, getImagesContainer} = require("../azure/helpers");
 
 const generateAccessToken = (id, email) => {
     const payload = {
@@ -65,7 +64,7 @@ class UserService {
                 }
             ]
         };
-        const imageContainer = await getContainer('Images');
+        const imageContainer = await getImagesContainer();
         const { resources } = await imageContainer.items.query(querySpec).fetchAll();
         return { user: userData, memory:resources[0] };
     }
@@ -106,6 +105,14 @@ class UserService {
         };
         const { resources } = await container.items.query(querySpec).fetchAll();
         return  resources[0]
+    }
+    async getFullInfo() {
+        const querySpec = {
+            query: 'SELECT VALUE COUNT(1), SUM(c.size) FROM c'
+        };
+        const imageContainer = await getImagesContainer()
+        const { resources: data } = await imageContainer.items.query(querySpec).fetchAll();
+        const userContainer = await getUsersContainer()
     }
 }
 
