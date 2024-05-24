@@ -5,5 +5,6 @@ module.exports = class Album {
         this.userId = userId;
         this.userEmail = userEmail;
         this.sharedWith = sharedWith;
+        this.createdAt = new Date()
     }
 }
