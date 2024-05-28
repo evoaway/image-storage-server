@@ -2,7 +2,6 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require('../models/userModel')
 const {getUsersContainer, getImagesContainer} = require("../azure/helpers");
-const AlbumService = require('../sevices/albumService')
 
 const generateAccessToken = (id, email, role) => {
     const payload = {
