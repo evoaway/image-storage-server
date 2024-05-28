@@ -6,8 +6,7 @@ module.exports = function (req, res, next) {
         if (!token) {
             return res.status(403).json({message: "Access token is not valid!"})
         }
-        const decodedData = jwt.verify(token, process.env.SECRET_KEY)
-        req.user = decodedData
+        req.user = jwt.verify(token, process.env.SECRET_KEY)
         next()
     } catch (e) {
         return res.status(403).json({message: "Access token is not valid!"})
