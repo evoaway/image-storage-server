@@ -12,6 +12,15 @@ const generateAccessToken = (id, email, role) => {
     return jwt.sign(payload, process.env.SECRET_KEY, {expiresIn: "30d"} )
 }
 
+const formatBytes = (bytes,decimals) => {
+    if(bytes === 0) return '0 Bytes';
+    const k = 1024,
+        dm = decimals || 2,
+        sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'],
+        i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 class UserService {
     async create(email, password, firstname, lastname) {
         const container = await getUsersContainer()
@@ -60,7 +69,7 @@ class UserService {
         const { resource:user } = await container.item(id).read();
         const {hashPassword, ...userData} = user
         const querySpec = {
-            query: 'SELECT SUM(c.size) FROM c WHERE c.userId = @userId',
+            query: 'SELECT SUM(c.size) as sum FROM c WHERE c.userId = @userId',
             parameters: [
                 {
                     name: '@userId',
@@ -70,7 +79,7 @@ class UserService {
         };
         const imageContainer = await getImagesContainer();
         const { resources } = await imageContainer.items.query(querySpec).fetchAll();
-        return { user: userData, memory:resources[0] };
+        return { user: userData, memory: formatBytes(resources[0].sum) };
     }
     async update(id, body) {
         const container = await getUsersContainer()
@@ -122,7 +131,7 @@ class UserService {
                 firstname: user.firstname,
                 lastname: user.lastname,
                 email: user.email,
-                sum: images ? images.sum : 0,
+                sum: images ? formatBytes(images.sum) : 0,
                 count: images ? images.count : 0,
             };
         })
