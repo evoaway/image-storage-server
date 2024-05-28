@@ -81,7 +81,7 @@ class AlbumController {
     async delete(req, res) {
         try {
             const id = req.params.id
-            await AlbumService.delete(id)
+            await AlbumService.deleteAlbum(id)
             return res.status(200).json({status:'success'})
         } catch (e) {
             res.status(500).json({status: 'error', message: e.message})

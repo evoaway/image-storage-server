@@ -102,7 +102,7 @@ class AlbumService {
         const { resource: album } = await albumContainer.item(id).read();
         return album
     }
-    async delete(id) {
+    async deleteAlbum(id) {
         const albumContainer = await getAlbumsContainer()
         const { resource: album } = await albumContainer.item(id).read();
         await albumContainer.item(id).delete()

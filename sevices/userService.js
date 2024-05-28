@@ -2,11 +2,13 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require('../models/userModel')
 const {getUsersContainer, getImagesContainer} = require("../azure/helpers");
+const AlbumService = require('../sevices/albumService')
 
-const generateAccessToken = (id, email) => {
+const generateAccessToken = (id, email, role) => {
     const payload = {
         id,
-        email
+        email,
+        role
     }
     return jwt.sign(payload, process.env.SECRET_KEY, {expiresIn: "30d"} )
 }
@@ -49,7 +51,10 @@ class UserService {
         if (!user || !bcrypt.compareSync(password, user.hashPassword)) {
             throw new Error("Incorrect email or password!");
         }
-        return generateAccessToken(user.id, user.email);
+        if (user.locked) {
+            throw new Error("User is blocked");
+        }
+        return generateAccessToken(user.id, user.email, user.role);
     }
     async getMe(id) {
         const container = await getUsersContainer()
@@ -107,12 +112,32 @@ class UserService {
         return  resources[0]
     }
     async getFullInfo() {
-        const querySpec = {
-            query: 'SELECT VALUE COUNT(1), SUM(c.size) FROM c'
-        };
         const imageContainer = await getImagesContainer()
-        const { resources: data } = await imageContainer.items.query(querySpec).fetchAll();
+        const { resources: imagesData } = await imageContainer.items.query('SELECT c. userId, COUNT(1) as count, SUM(c.size) as sum FROM c GROUP BY c.userId').fetchAll();
         const userContainer = await getUsersContainer()
+        const { resources: users } = await userContainer.items.query('SELECT * FROM c').fetchAll()
+        return users.map(user => {
+            const images = imagesData.find(images => images.userId === user.id);
+            return {
+                id: user.id,
+                firstname: user.firstname,
+                lastname: user.lastname,
+                email: user.email,
+                sum: images ? images.sum : 0,
+                count: images ? images.count : 0,
+            };
+        })
+    }
+    async block(id) {
+        const userContainer = await getUsersContainer()
+        const {resource:user} = await userContainer.item(id).read()
+        user.locked = !user.locked
+        const { resource: updatedUser } = await userContainer.item(id).replace(user);
+        return updatedUser
+    }
+    async deleteUser(id) {
+        const userContainer = await getUsersContainer()
+        await userContainer.item(id).delete()
     }
 }
 
