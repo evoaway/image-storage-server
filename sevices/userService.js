@@ -123,7 +123,16 @@ class UserService {
         const imageContainer = await getImagesContainer()
         const { resources: imagesData } = await imageContainer.items.query('SELECT c. userId, COUNT(1) as count, SUM(c.size) as sum FROM c GROUP BY c.userId').fetchAll();
         const userContainer = await getUsersContainer()
-        const { resources: users } = await userContainer.items.query('SELECT * FROM c').fetchAll()
+        const query = {
+            query: 'SELECT c.id, c.firstname, c.lastname, c.email FROM c WHERE c.role = @role',
+            parameters: [
+                {
+                    name: '@role',
+                    value: 'user'
+                }
+            ]
+        };
+        const { resources: users } = await userContainer.items.query(query).fetchAll()
         return users.map(user => {
             const images = imagesData.find(images => images.userId === user.id);
             return {

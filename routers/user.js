@@ -3,8 +3,12 @@ const router = new Router()
 const userController = require('../controllers/userController')
 const authMiddleware = require("../middleware/authMiddleware");
 const checkRole = require("../middleware/checkRoleMiddleware");
+const {check} = require("express-validator");
 
-router.post('/registration', userController.registration)
+router.post('/registration', [
+    check('email', "Invalid email format").isEmail(),
+    check('password', "Password cannot be empty").notEmpty()
+], userController.registration)
 router.post('/login', userController.login)
 router.get('/', authMiddleware, userController.getMyInfo)
 router.patch('/', authMiddleware, userController.updateMyInfo)

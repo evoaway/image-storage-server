@@ -1,9 +1,14 @@
 const UserService = require('../sevices/userService')
 const AlbumService = require('../sevices/albumService')
+const {validationResult} = require("express-validator");
 
 class UserController {
     async registration(req, res) {
         try {
+            const errors = validationResult(req)
+            if (!errors.isEmpty()) {
+                return res.status(400).json({status: 'error', message: errors.errors[0].msg})
+            }
             const {email, password, firstname, lastname} = req.body;
             const userData = await UserService.create(email, password, firstname, lastname)
             return res.status(200).json({status: 'success', user: userData});
