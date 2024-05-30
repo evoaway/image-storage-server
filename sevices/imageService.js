@@ -1,15 +1,18 @@
 const sharp = require("sharp");
 const {v4: uuidv4} = require("uuid");
 const path = require("path");
-const {containerClient, cvClient} = require("../azure/azureConnections");
+const {containerClient} = require("../azure/connections");
 const Image = require('../models/imageModel')
-const {getImagesContainer} = require("../azure/helpers");
+const {imageAnalysis} = require("../azure/aiVision");
+const {getImagesContainer} = require("../azure/db");
+const {uploadBlob} = require("../azure/blob");
 
+const THRESHOLD_SIZE = 2097152
 class ImageService {
     async upload(id, email, files) {
         const imageUploadPromises = files.map(async (file) => {
             let imageBuffer = file.buffer;
-            if (file.size > 2000000) {
+            if (file.size > THRESHOLD_SIZE) {
                 imageBuffer = await sharp(file.buffer)
                     .jpeg({ quality: 90 })
                     .toBuffer();
@@ -17,33 +20,9 @@ class ImageService {
             const size = imageBuffer.length
             const imageId = uuidv4().toString()
             const blobName = imageId + path.extname(file.originalname);
-            const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-            await blockBlobClient.uploadData(imageBuffer);
-            const imageUrl = blockBlobClient.url;
+            const imageUrl = await uploadBlob(blobName, imageBuffer)
 
-            const result = await cvClient.path('/imageanalysis:analyze').post({
-                body: {
-                    url: imageUrl
-                },
-                queryParameters: {
-                    features: ['Tags', 'Read']
-                },
-                contentType: 'application/json'
-            });
-            let tags = []
-            const classResult = result.body.tagsResult.values[0]?.name || 'unknown';
-            result.body.tagsResult.values.forEach(value => {
-                tags.push(value.name)
-            })
-            let resultText = []
-            if (result.body.readResult) {
-                result.body.readResult.blocks.forEach(block => {
-                    block.lines.forEach(line => {
-                        resultText.push(line.text)
-                    })
-                })
-            }
-            const metadata = result.body.metadata
+            const {tags, classResult, resultText, metadata} = await imageAnalysis(imageUrl)
             return new Image(imageId, id, file.originalname, blobName, imageUrl, classResult, tags, resultText, metadata, size)
         });
         const uploadAndCVResults = await Promise.all(imageUploadPromises);
