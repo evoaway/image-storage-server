@@ -12,24 +12,18 @@ const READABLE_FORMATS = ['image/jpeg','image/png','image/tiff']
 
 async function imageCompression(file) {
     const format = file.mimetype
-    let compressedImage;
-    switch (format) {
-        case 'image/jpeg':
-            compressedImage = await sharp(file.buffer).jpeg({ quality: 90 }).toBuffer();
-            break;
-        case 'image/png':
-            compressedImage = await sharp(file.buffer).png({ quality: 90 }).toBuffer();
-            break;
-        case 'image/webp':
-            compressedImage = await sharp(file.buffer).webp({quality: 90 }).toBuffer();
-            break;
-        case 'image/tiff':
-            compressedImage = await sharp(file.buffer).tiff({ quality: 90 }).toBuffer();
-            break;
-        default:
-            throw new Error(`Unsupported image format: ${format}`);
+    const formatOptions = {
+        'image/jpeg': sharp(file.buffer).jpeg({ quality: 90 }),
+        'image/png': sharp(file.buffer).png({ quality: 90 }),
+        'image/webp': sharp(file.buffer).webp({ quality: 90 }),
+        'image/tiff': sharp(file.buffer).tiff({ quality: 90 })
+    };
+
+    if (!formatOptions[format]) {
+        throw new Error(`Unsupported image format: ${format}`);
     }
-    return compressedImage
+
+    return formatOptions[format].toBuffer();
 }
 class ImageService {
     async imageProcessing(file) {
