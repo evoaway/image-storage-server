@@ -7,22 +7,53 @@ const {imageAnalysis} = require("../azure/aiVision");
 const {getImagesContainer} = require("../azure/db");
 const {uploadBlob} = require("../azure/blob");
 
-const THRESHOLD_SIZE = 2097152
+const THRESHOLD_SIZE = 2 * 1024 * 1024 // 2 MB
+const READABLE_FORMATS = ['image/jpeg','image/png','image/tiff']
+
+async function imageCompression(file) {
+    const format = file.mimetype
+    let compressedImage;
+    switch (format) {
+        case 'image/jpeg':
+            compressedImage = await sharp(file.buffer).jpeg({ quality: 90 }).toBuffer();
+            break;
+        case 'image/png':
+            compressedImage = await sharp(file.buffer).png({ quality: 90 }).toBuffer();
+            break;
+        case 'image/webp':
+            compressedImage = await sharp(file.buffer).webp({quality: 90 }).toBuffer();
+            break;
+        case 'image/tiff':
+            compressedImage = await sharp(file.buffer).tiff({ quality: 90 }).toBuffer();
+            break;
+        default:
+            throw new Error(`Unsupported image format: ${format}`);
+    }
+    return compressedImage
+}
 class ImageService {
+    async imageProcessing(file) {
+        let imageBuffer = file.buffer;
+        let features;
+        if (file.size > THRESHOLD_SIZE) {
+            imageBuffer = await imageCompression(file)
+        }
+        if (READABLE_FORMATS.includes(file.mimetype)) {
+            features = ['Tags', 'Read']
+        } else {
+            features = ['Tags']
+        }
+        return {imageBuffer,features}
+    }
     async upload(id, email, files) {
         const imageUploadPromises = files.map(async (file) => {
-            let imageBuffer = file.buffer;
-            if (file.size > THRESHOLD_SIZE) {
-                imageBuffer = await sharp(file.buffer)
-                    .jpeg({ quality: 90 })
-                    .toBuffer();
-            }
+            const {imageBuffer,features} = await this.imageProcessing(file)
             const size = imageBuffer.length
             const imageId = uuidv4().toString()
             const blobName = imageId + path.extname(file.originalname);
             const imageUrl = await uploadBlob(blobName, imageBuffer)
 
-            const {tags, classResult, resultText, metadata} = await imageAnalysis(imageUrl)
+            const {tags, classResult, resultText, metadata} = await imageAnalysis(imageUrl,features)
             return new Image(imageId, id, file.originalname, blobName, imageUrl, classResult, tags, resultText, metadata, size)
         });
         const uploadAndCVResults = await Promise.all(imageUploadPromises);

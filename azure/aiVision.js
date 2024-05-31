@@ -1,12 +1,12 @@
 const {cvClient} = require("./connections");
 
-async function imageAnalysis(imageUrl) {
+async function imageAnalysis(imageUrl,features) {
     const result = await cvClient.path('/imageanalysis:analyze').post({
         body: {
             url: imageUrl
         },
         queryParameters: {
-            features: ['Tags', 'Read']
+            features: features
         },
         contentType: 'application/json'
     });
