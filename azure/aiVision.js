@@ -26,4 +26,4 @@ async function imageAnalysis(imageUrl) {
     const metadata = result.body.metadata
     return {tags, classResult, resultText, metadata}
 }
-module.exports = {downloadBlob, getUsersContainer, getAlbumsContainer, getImagesContainer, imageAnalysis}
+module.exports = {imageAnalysis}
