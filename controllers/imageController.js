@@ -1,6 +1,6 @@
 const {
     containerClient,
-} = require('../azure/azureConnections');
+} = require('../azure/connections');
 const ImageService = require('../sevices/imageService')
 const AlbumService = require('../sevices/albumService')
 

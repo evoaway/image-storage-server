@@ -7,7 +7,7 @@ class UserController {
         try {
             const errors = validationResult(req)
             if (!errors.isEmpty()) {
-                return res.status(400).json({status: 'error', message: errors.errors[0].msg})
+                return res.status(400).json({status: 'error', message: errors.array()})
             }
             const {email, password, firstname, lastname} = req.body;
             const userData = await UserService.create(email, password, firstname, lastname)
@@ -37,6 +37,10 @@ class UserController {
     }
     async updateMyInfo(req,res) {
         try {
+            const errors = validationResult(req)
+            if (!errors.isEmpty()) {
+                return res.status(400).json({ status: 'error', message: errors.array() });
+            }
             const userId = req.user.id;
             const updatedUser = await UserService.update(userId, req.body)
             return res.status(200).json({ status:'success', user: updatedUser });

@@ -1,7 +1,7 @@
-const {containerClient} = require("../azure/azureConnections");
+const {containerClient} = require("../azure/connections");
 const Album = require('../models/albumModel')
 const User = require('../sevices/userService')
-const {getAlbumsContainer, getUsersContainer, getImagesContainer} = require("../azure/helpers");
+const {getAlbumsContainer, getUsersContainer, getImagesContainer} = require("../azure/db");
 
 class AlbumService {
     async addOrUpdate(classname, imageBlob, userId, userEmail) {

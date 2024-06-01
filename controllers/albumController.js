@@ -1,6 +1,6 @@
 const archiver = require('archiver');
 const AlbumService = require('../sevices/albumService')
-const {downloadBlob} = require("../azure/helpers");
+const {downloadBlob} = require("../azure/blob");
 
 class AlbumController {
     async getAlbums(req, res) {

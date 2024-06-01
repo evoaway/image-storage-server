@@ -11,7 +11,8 @@ router.post('/registration', [
 ], userController.registration)
 router.post('/login', userController.login)
 router.get('/', authMiddleware, userController.getMyInfo)
-router.patch('/', authMiddleware, userController.updateMyInfo)
+router.patch('/', authMiddleware, check('email', "Invalid email format").optional().isEmail(),
+    userController.updateMyInfo)
 router.get('/admin/info', checkRole('admin'), userController.getFullInfo)
 router.patch('/admin/:id', checkRole('admin'), userController.block)
 router.delete('/admin/:id', checkRole('admin'), userController.delete)

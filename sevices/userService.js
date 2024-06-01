@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require('../models/userModel')
-const {getUsersContainer, getImagesContainer} = require("../azure/helpers");
+const {getUsersContainer, getImagesContainer} = require("../azure/db");
 
 const generateAccessToken = (id, email, role) => {
     const payload = {
@@ -39,8 +39,8 @@ class UserService {
         }
         const hashedPassword = await bcrypt.hash(password, 5)
         const user = new User(email, hashedPassword, firstname, lastname)
-        const { resource } = await container.items.create(user);
-        const {hashPassword, ...userData} = resource
+        await container.items.create(user);
+        const {hashPassword, ...userData} = user
         return userData;
     }
     async login(email, password) {

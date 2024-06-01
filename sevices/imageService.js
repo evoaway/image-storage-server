@@ -1,49 +1,53 @@
 const sharp = require("sharp");
 const {v4: uuidv4} = require("uuid");
 const path = require("path");
-const {containerClient, cvClient} = require("../azure/azureConnections");
+const {containerClient} = require("../azure/connections");
 const Image = require('../models/imageModel')
-const {getImagesContainer} = require("../azure/helpers");
+const {imageAnalysis} = require("../azure/aiVision");
+const {getImagesContainer, getAlbumsContainer} = require("../azure/db");
+const {uploadBlob} = require("../azure/blob");
 
+const THRESHOLD_SIZE = 2 * 1024 * 1024 // 2 MB
+const READABLE_FORMATS = ['image/jpeg','image/png','image/tiff']
+
+async function imageCompression(file) {
+    const format = file.mimetype
+    const formatOptions = {
+        'image/jpeg': sharp(file.buffer).jpeg({ quality: 90 }),
+        'image/png': sharp(file.buffer).png({ quality: 90 }),
+        'image/webp': sharp(file.buffer).webp({ quality: 90 }),
+        'image/tiff': sharp(file.buffer).tiff({ quality: 90 })
+    };
+
+    if (!formatOptions[format]) {
+        throw new Error(`Unsupported image format: ${format}`);
+    }
+
+    return formatOptions[format].toBuffer();
+}
 class ImageService {
+    async imageProcessing(file) {
+        let imageBuffer = file.buffer;
+        let features;
+        if (file.size > THRESHOLD_SIZE) {
+            imageBuffer = await imageCompression(file)
+        }
+        if (READABLE_FORMATS.includes(file.mimetype)) {
+            features = ['Tags', 'Read']
+        } else {
+            features = ['Tags']
+        }
+        return {imageBuffer,features}
+    }
     async upload(id, email, files) {
         const imageUploadPromises = files.map(async (file) => {
-            let imageBuffer = file.buffer;
-            if (file.size > 2000000) {
-                imageBuffer = await sharp(file.buffer)
-                    .jpeg({ quality: 90 })
-                    .toBuffer();
-            }
+            const {imageBuffer,features} = await this.imageProcessing(file)
             const size = imageBuffer.length
             const imageId = uuidv4().toString()
             const blobName = imageId + path.extname(file.originalname);
-            const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-            await blockBlobClient.uploadData(imageBuffer);
-            const imageUrl = blockBlobClient.url;
+            const imageUrl = await uploadBlob(blobName, imageBuffer)
 
-            const result = await cvClient.path('/imageanalysis:analyze').post({
-                body: {
-                    url: imageUrl
-                },
-                queryParameters: {
-                    features: ['Tags', 'Read']
-                },
-                contentType: 'application/json'
-            });
-            let tags = []
-            const classResult = result.body.tagsResult.values[0]?.name || 'unknown';
-            result.body.tagsResult.values.forEach(value => {
-                tags.push(value.name)
-            })
-            let resultText = []
-            if (result.body.readResult) {
-                result.body.readResult.blocks.forEach(block => {
-                    block.lines.forEach(line => {
-                        resultText.push(line.text)
-                    })
-                })
-            }
-            const metadata = result.body.metadata
+            const {tags, classResult, resultText, metadata} = await imageAnalysis(imageUrl,features)
             return new Image(imageId, id, file.originalname, blobName, imageUrl, classResult, tags, resultText, metadata, size)
         });
         const uploadAndCVResults = await Promise.all(imageUploadPromises);
@@ -65,7 +69,7 @@ class ImageService {
         if (!image) {
             throw new Error("Image not found")
         }
-        const albumContainer = await getImagesContainer();
+        const albumContainer = await getAlbumsContainer();
         const querySpec = {
             query: 'SELECT * FROM c WHERE c.className = @class AND c.userId = @userId',
             parameters: [
@@ -93,7 +97,7 @@ class ImageService {
     async search(userId, input, className) {
         const container = await getImagesContainer()
         const querySpec = {
-            query: "SELECT * FROM c WHERE c.userId=@userId AND c.className=@className AND (CONTAINS(LOWER(c.originalName), @input) OR ARRAY_CONTAINS(c.tags, @input))",
+            query: "SELECT c.id, c.originalName, c.imageUrl FROM c WHERE c.userId=@userId AND c.className=@className AND (CONTAINS(LOWER(c.originalName), @input) OR ARRAY_CONTAINS(c.tags, @input))",
             parameters: [
                 { name: "@input", value: input.toLowerCase() },
                 { name: "@className", value: className },
