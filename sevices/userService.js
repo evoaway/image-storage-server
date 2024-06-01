@@ -39,8 +39,8 @@ class UserService {
         }
         const hashedPassword = await bcrypt.hash(password, 5)
         const user = new User(email, hashedPassword, firstname, lastname)
-        const { resource } = await container.items.create(user);
-        const {hashPassword, ...userData} = resource
+        await container.items.create(user);
+        const {hashPassword, ...userData} = user
         return userData;
     }
     async login(email, password) {
