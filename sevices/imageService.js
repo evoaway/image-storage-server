@@ -4,7 +4,7 @@ const path = require("path");
 const {containerClient} = require("../azure/connections");
 const Image = require('../models/imageModel')
 const {imageAnalysis} = require("../azure/aiVision");
-const {getImagesContainer} = require("../azure/db");
+const {getImagesContainer, getAlbumsContainer} = require("../azure/db");
 const {uploadBlob} = require("../azure/blob");
 
 const THRESHOLD_SIZE = 2 * 1024 * 1024 // 2 MB
@@ -69,7 +69,7 @@ class ImageService {
         if (!image) {
             throw new Error("Image not found")
         }
-        const albumContainer = await getImagesContainer();
+        const albumContainer = await getAlbumsContainer();
         const querySpec = {
             query: 'SELECT * FROM c WHERE c.className = @class AND c.userId = @userId',
             parameters: [
@@ -97,7 +97,7 @@ class ImageService {
     async search(userId, input, className) {
         const container = await getImagesContainer()
         const querySpec = {
-            query: "SELECT * FROM c WHERE c.userId=@userId AND c.className=@className AND (CONTAINS(LOWER(c.originalName), @input) OR ARRAY_CONTAINS(c.tags, @input))",
+            query: "SELECT c.id, c.originalName, c.imageUrl FROM c WHERE c.userId=@userId AND c.className=@className AND (CONTAINS(LOWER(c.originalName), @input) OR ARRAY_CONTAINS(c.tags, @input))",
             parameters: [
                 { name: "@input", value: input.toLowerCase() },
                 { name: "@className", value: className },
