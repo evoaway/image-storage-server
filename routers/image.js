@@ -3,7 +3,9 @@ const multer = require("multer");
 const router = new Router()
 const imageController = require('../controllers/imageController')
 const authMiddleware = require('../middleware/authMiddleware')
-const upload = multer({ storage: multer.memoryStorage() }).array('images', 100);
+const upload = multer({ storage: multer.memoryStorage(),
+    limits: { fileSize: 20000000 } }) // 20 MB
+    .array('images', 100);
 
 router.post('/', upload, authMiddleware,  imageController.uploadImages)
 router.get('/', authMiddleware,  imageController.search)
