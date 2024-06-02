@@ -7,6 +7,9 @@ const AlbumService = require('../sevices/albumService')
 class ImageController {
     async uploadImages(req, res) {
         try {
+            if (req.files === undefined || req.files.length === 0) {
+                return res.status(400).json({status: 'error', message: 'No files selected or unsupported format!'});
+            }
             const id = req.user.id;
             const email = req.user.email
             const {dbResult, resultData} = await ImageService.upload(id, email, req.files)
