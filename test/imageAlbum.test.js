@@ -1,7 +1,6 @@
 const request = require('supertest');
 const app = require('../app')
 const path = require('path');
-const fs = require('fs');
 
 const token = process.env.ADMIN_TOKEN;
 let imageId,albumId
