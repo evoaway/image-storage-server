@@ -13,16 +13,14 @@ const READABLE_FORMATS = ['image/jpeg','image/png','image/tiff']
 async function imageCompression(file) {
     const format = file.mimetype
     const formatOptions = {
-        'image/jpeg': sharp(file.buffer).jpeg({ quality: 90 }),
-        'image/png': sharp(file.buffer).png({ quality: 90 }),
+        'image/jpeg': sharp(file.buffer).jpeg({ quality: 85 }),
+        'image/png': sharp(file.buffer).png({ quality: 85 }),
         'image/webp': sharp(file.buffer).webp({ quality: 90 }),
         'image/tiff': sharp(file.buffer).tiff({ quality: 90 })
     };
-
     if (!formatOptions[format]) {
         throw new Error(`Unsupported image format: ${format}`);
     }
-
     return formatOptions[format].toBuffer();
 }
 class ImageService {
@@ -46,7 +44,6 @@ class ImageService {
             const imageId = uuidv4().toString()
             const blobName = imageId + path.extname(file.originalname);
             const imageUrl = await uploadBlob(blobName, imageBuffer)
-
             const {tags, classResult, resultText, metadata} = await imageAnalysis(imageUrl,features)
             return new Image(imageId, id, file.originalname, blobName, imageUrl, classResult, tags, resultText, metadata, size)
         });

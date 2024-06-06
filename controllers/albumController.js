@@ -68,7 +68,6 @@ class AlbumController {
 
             const archive = archiver('zip');
             res.attachment('images.zip');
-
             archive.pipe(res);
             images.forEach((image, index) => {
                 archive.append(image, { name: imagesBlobs[index] });
