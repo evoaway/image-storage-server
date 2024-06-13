@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require('../models/userModel')
-const {getUsersContainer, getImagesContainer} = require("../azure/db");
+const Image = require('../models/imageModel')
 
 const generateAccessToken = (id, email, role) => {
     const payload = {
@@ -23,7 +23,8 @@ const formatBytes = (bytes,decimals) => {
 
 class UserService {
     async create(email, password, firstname, lastname) {
-        const container = await getUsersContainer()
+        const hashedPassword = await bcrypt.hash(password, 5)
+        const user = new User(email, hashedPassword, firstname, lastname)
         const querySpec = {
             query: 'SELECT c.id FROM c WHERE c.email = @email',
             parameters: [
@@ -33,18 +34,18 @@ class UserService {
                 }
             ]
         };
-        const { resources } = await container.items.query(querySpec).fetchAll();
-        if (resources.length > 0) {
+        const existUser = await user.find(querySpec)
+        if (existUser) {
             throw new Error("User already exists");
         }
-        const hashedPassword = await bcrypt.hash(password, 5)
-        const user = new User(email, hashedPassword, firstname, lastname)
-        await container.items.create(user);
+        await user.create()
         const {hashPassword, ...userData} = user
         return userData;
     }
     async login(email, password) {
-        const container = await getUsersContainer()
+        const user = new User()
+        user.email = email
+        user.hashPassword = password
         const querySpec = {
             query: 'SELECT * FROM c WHERE c.email = @email',
             parameters: [
@@ -54,20 +55,19 @@ class UserService {
                 }
             ]
         };
-        const { resources } = await container.items.query(querySpec).fetchAll();
-        const user = resources[0]
-        if (!user || !bcrypt.compareSync(password, user.hashPassword)) {
+        const findUser = await user.find(querySpec)
+        if (!findUser || !bcrypt.compareSync(password, findUser.hashPassword)) {
             throw new Error("Incorrect email or password!");
         }
-        if (user.locked) {
+        if (findUser.locked) {
             throw new Error("User is blocked");
         }
-        return generateAccessToken(user.id, user.email, user.role);
+        return generateAccessToken(findUser.id, findUser.email, findUser.role);
     }
     async getMe(id) {
-        const container = await getUsersContainer()
-        const { resource:user } = await container.item(id).read();
-        const {hashPassword, ...userData} = user
+        const user = new User()
+        const result = await user.get(id)
+        const {hashPassword, ...userData} = result
         const querySpec = {
             query: 'SELECT SUM(c.size) as sum FROM c WHERE c.userId = @userId',
             parameters: [
@@ -77,13 +77,13 @@ class UserService {
                 }
             ]
         };
-        const imageContainer = await getImagesContainer();
-        const { resources } = await imageContainer.items.query(querySpec).fetchAll();
+        const images = new Image()
+        const resources = await images.find(querySpec)
         return { user: userData, memory: formatBytes(resources[0].sum) };
     }
     async update(id, body) {
-        const container = await getUsersContainer()
-        const { resource: user } = await container.item(id).read();
+        const user = new User()
+        const updateUser = await user.get(id)
         if(body.email){
             const querySpec = {
                 query: 'SELECT c.id FROM c WHERE c.email = @email',
@@ -94,19 +94,18 @@ class UserService {
                     }
                 ]
             };
-            const { resources } = await container.items.query(querySpec).fetchAll();
-            if (resources.length > 0) {
+            const existUser = await user.find(querySpec)
+            if (existUser) {
                 throw new Error("User already exists");
             }
         }
         Object.keys(body).forEach(key => {
-            user[key] = body[key];
+            updateUser[key] = body[key];
         });
-        const { resource: updatedUser } = await container.item(id).replace(user);
+        const updatedUser = await user.update(id, updateUser)
         return updatedUser;
     }
     async getUserByEmail(email){
-        const container = await getUsersContainer()
         const querySpec = {
             query: 'SELECT c.id FROM c WHERE c.email = @email',
             parameters: [
@@ -116,13 +115,15 @@ class UserService {
                 }
             ]
         };
-        const { resources } = await container.items.query(querySpec).fetchAll();
-        return  resources[0]
+        const user = new User()
+        return await user.find(querySpec)
     }
     async getFullInfo() {
-        const imageContainer = await getImagesContainer()
-        const { resources: imagesData } = await imageContainer.items.query('SELECT c. userId, COUNT(1) as count, SUM(c.size) as sum FROM c GROUP BY c.userId').fetchAll();
-        const userContainer = await getUsersContainer()
+        const querySpec = {
+            query: 'SELECT c. userId, COUNT(1) as count, SUM(c.size) as sum FROM c GROUP BY c.userId'
+        }
+        const image = new Image()
+        const imagesData = await image.find(querySpec)
         const query = {
             query: 'SELECT c.id, c.firstname, c.lastname, c.email FROM c WHERE c.role = @role',
             parameters: [
@@ -132,7 +133,8 @@ class UserService {
                 }
             ]
         };
-        const { resources: users } = await userContainer.items.query(query).fetchAll()
+        const user = new User()
+        const users = await user.findAll(query)
         return users.map(user => {
             const images = imagesData.find(images => images.userId === user.id);
             return {
@@ -146,15 +148,14 @@ class UserService {
         })
     }
     async block(id) {
-        const userContainer = await getUsersContainer()
-        const {resource:user} = await userContainer.item(id).read()
+        const userModel = new User()
+        const user = await userModel.get(id)
         user.locked = !user.locked
-        const { resource: updatedUser } = await userContainer.item(id).replace(user);
-        return updatedUser
+        return await userModel.update(id, user)
     }
     async deleteUser(id) {
-        const userContainer = await getUsersContainer()
-        await userContainer.item(id).delete()
+        const userModel = new User()
+        await userModel.delete(id)
     }
 }
 

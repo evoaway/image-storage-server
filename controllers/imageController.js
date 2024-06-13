@@ -13,10 +13,10 @@ class ImageController {
             const id = req.user.id;
             const email = req.user.email
             const {dbResult, resultData} = await ImageService.upload(id, email, req.files)
-            res.status(200).json({status:'success', data: resultData});
             for (const item of dbResult) {
                 await AlbumService.addOrUpdate(item.resourceBody.className, item.resourceBody.blobName, id, email);
             }
+            res.status(200).json({status:'success', data: resultData});
         } catch (e) {
             console.error(e);
             res.status(500).json({status: 'error', message: e.message})

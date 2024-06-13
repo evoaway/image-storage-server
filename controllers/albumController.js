@@ -23,8 +23,9 @@ class AlbumController {
     }
     async getAlbumImages(req, res) {
         try {
+            const userId = req.user.id;
             const id = req.params.id;
-            const images = await AlbumService.getAlbumImages(id)
+            const images = await AlbumService.getAlbumImages(id,userId)
             return res.status(200).json({status:'success', images:images});
         } catch (e) {
             res.status(500).json({status: 'error', message: e.message})
@@ -65,7 +66,6 @@ class AlbumController {
             const album = await AlbumService.getAlbum(id)
             const imagesBlobs = album.images
             const images = await Promise.all(imagesBlobs.map(blobName => downloadBlob(blobName)));
-
             const archive = archiver('zip');
             res.attachment('images.zip');
             archive.pipe(res);
