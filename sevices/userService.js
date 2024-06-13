@@ -102,8 +102,7 @@ class UserService {
         Object.keys(body).forEach(key => {
             updateUser[key] = body[key];
         });
-        const updatedUser = await user.update(id, updateUser)
-        return updatedUser;
+        return await user.update(id, updateUser);
     }
     async getUserByEmail(email){
         const querySpec = {
