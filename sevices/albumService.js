@@ -19,7 +19,7 @@ class AlbumService {
                 await albumModel.update(existAlbum.id, existAlbum)
             } else {
                 const newAlbum = new Album(classname, [imageBlob], userId, userEmail, [])
-                await newAlbum.crete()
+                await newAlbum.create()
             }
         } catch (e) {
             console.error(e)

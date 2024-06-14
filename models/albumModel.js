@@ -8,7 +8,7 @@ module.exports = class Album {
         this.sharedWith = sharedWith;
         this.createdAt = new Date()
     }
-    async crete(){
+    async create(){
         const albums = await getAlbumsContainer();
         await albums.items.create(this);
     }
