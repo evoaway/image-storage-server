@@ -6,6 +6,7 @@ const Image = require('../models/imageModel')
 const {imageAnalysis} = require("../azure/aiVision");
 const {uploadBlob} = require("../azure/blob");
 const Album = require("../models/albumModel");
+const {formatBytes} = require("./utils");
 
 const THRESHOLD_SIZE = 2 * 1024 * 1024 // 2 MB
 const READABLE_FORMATS = ['image/jpeg','image/png','image/tiff']
@@ -56,6 +57,8 @@ class ImageService {
     async get(id){
         const image = new Image()
         const result = await image.get(id)
+        const {size} = result
+        result.size = formatBytes(size)
         if (!result)
             throw new Error("Image not found")
         return result

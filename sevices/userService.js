@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require('../models/userModel')
 const Image = require('../models/imageModel')
+const {formatBytes} = require("./utils");
 
 const generateAccessToken = (id, email, role) => {
     const payload = {
@@ -10,15 +11,6 @@ const generateAccessToken = (id, email, role) => {
         role
     }
     return jwt.sign(payload, process.env.SECRET_KEY, {expiresIn: "30d"} )
-}
-
-const formatBytes = (bytes,decimals) => {
-    if(bytes === 0) return '0 Bytes';
-    const k = 1024,
-        dm = decimals || 2,
-        sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'],
-        i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
 class UserService {
