@@ -8,7 +8,7 @@ const {check} = require("express-validator");
 router.post('/registration', [
     check('email', "Invalid email format").isEmail(),
     check('password', "Password cannot be empty").trim().notEmpty(),
-    check('password', "Password is too short").isLength({ min: 6 }),
+    check('password', "Password is too short").isLength({ min: 6, max: 32 }),
 ], userController.registration)
 router.post('/login', userController.login)
 router.get('/', authMiddleware, userController.getMyInfo)
