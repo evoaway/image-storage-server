@@ -24,8 +24,9 @@ class ImageController {
     }
     async getImage(req, res) {
         try {
+            const userId = req.user.id;
             const id = req.params.id
-            const image = await ImageService.get(id)
+            const image = await ImageService.get(id, userId)
             return res.status(200).json({status: 'success', image: image})
         } catch (e) {
             console.error(e);

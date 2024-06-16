@@ -54,12 +54,12 @@ class ImageService {
         const resultData = uploadAndCVResults.map(({ id, originalName, className }) => ({ id, originalName, className }));
         return {dbResult: dbResult, resultData: resultData}
     }
-    async get(id){
+    async get(id,userID){
         const image = new Image()
         const result = await image.get(id)
         const {size} = result
         result.size = formatBytes(size)
-        if (!result)
+        if (!result || result.userId !== userID)
             throw new Error("Image not found")
         return result
     }
