@@ -8,16 +8,16 @@ module.exports = function(role) {
         try {
             const token = req.headers.authorization.split(' ')[1]
             if (!token) {
-                return res.status(401).json({message: "Unauthorized!"})
+                return res.status(401).json({status: "error", message: "Unauthorized!"})
             }
             const decoded = jwt.verify(token, process.env.SECRET_KEY)
             if (decoded.role !== role) {
-                return res.status(403).json({message: "Access denied!"})
+                return res.status(403).json({status: "error", message: "Access denied!"})
             }
             req.user = decoded;
             next()
         } catch (e) {
-            res.status(401).json({message: "Unauthorized!"})
+            res.status(401).json({status: "error", message: "Unauthorized!"})
         }
     };
 }

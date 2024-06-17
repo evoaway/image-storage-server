@@ -4,8 +4,9 @@ const path = require("path");
 const {containerClient} = require("../azure/connections");
 const Image = require('../models/imageModel')
 const {imageAnalysis} = require("../azure/aiVision");
-const {getImagesContainer, getAlbumsContainer} = require("../azure/db");
 const {uploadBlob} = require("../azure/blob");
+const Album = require("../models/albumModel");
+const {formatBytes} = require("./utils");
 
 const THRESHOLD_SIZE = 2 * 1024 * 1024 // 2 MB
 const READABLE_FORMATS = ['image/jpeg','image/png','image/tiff']
@@ -13,16 +14,14 @@ const READABLE_FORMATS = ['image/jpeg','image/png','image/tiff']
 async function imageCompression(file) {
     const format = file.mimetype
     const formatOptions = {
-        'image/jpeg': sharp(file.buffer).jpeg({ quality: 90 }),
-        'image/png': sharp(file.buffer).png({ quality: 90 }),
+        'image/jpeg': sharp(file.buffer).jpeg({ quality: 85 }),
+        'image/png': sharp(file.buffer).png({ quality: 85 }),
         'image/webp': sharp(file.buffer).webp({ quality: 90 }),
         'image/tiff': sharp(file.buffer).tiff({ quality: 90 })
     };
-
     if (!formatOptions[format]) {
         throw new Error(`Unsupported image format: ${format}`);
     }
-
     return formatOptions[format].toBuffer();
 }
 class ImageService {
@@ -46,30 +45,30 @@ class ImageService {
             const imageId = uuidv4().toString()
             const blobName = imageId + path.extname(file.originalname);
             const imageUrl = await uploadBlob(blobName, imageBuffer)
-
             const {tags, classResult, resultText, metadata} = await imageAnalysis(imageUrl,features)
             return new Image(imageId, id, file.originalname, blobName, imageUrl, classResult, tags, resultText, metadata, size)
         });
         const uploadAndCVResults = await Promise.all(imageUploadPromises);
-        const container = await getImagesContainer()
-        const dbResult = await container.items.bulk(uploadAndCVResults.map(item => ({ operationType: 'Create', resourceBody: item })));
-        const resultData = uploadAndCVResults.map(({ originalName, className }) => ({ originalName, className }));
+        const imageModel = new Image()
+        const dbResult = await imageModel.create(uploadAndCVResults)
+        const resultData = uploadAndCVResults.map(({ id, originalName, className }) => ({ id, originalName, className }));
         return {dbResult: dbResult, resultData: resultData}
     }
-    async get(id){
-        const container = await getImagesContainer()
-        const {resource:image} = await container.item(id).read();
-        if (!image)
+    async get(id,userID){
+        const image = new Image()
+        const result = await image.get(id)
+        const {size} = result
+        result.size = formatBytes(size)
+        if (!result || result.userId !== userID)
             throw new Error("Image not found")
-        return image
+        return result
     }
     async delete(userId, imageId) {
-        const container = await getImagesContainer()
-        const {resource:image} = await container.item(imageId).read();
+        const imageModel = new Image()
+        const image = await imageModel.get(imageId)
         if (!image) {
             throw new Error("Image not found")
         }
-        const albumContainer = await getAlbumsContainer();
         const querySpec = {
             query: 'SELECT * FROM c WHERE c.className = @class AND c.userId = @userId',
             parameters: [
@@ -83,36 +82,35 @@ class ImageService {
                 }
             ]
         };
-        const { resources } = await albumContainer.items.query(querySpec).fetchAll();
-        const album = resources[0]
+        const albumModel = new Album()
+        const albums = await albumModel.find(querySpec)
+        const album = albums[0]
         const index = album.images.indexOf(image.blobName);
         if (index !== -1) {
             album.images.splice(index, 1);
-            await albumContainer.item(album.id).replace(album);
+            await albumModel.update(album.id, album)
         }
         const blob = containerClient.getBlobClient(image.blobName);
         await blob.delete();
-        await container.item(imageId).delete()
+        await imageModel.delete(imageId)
     }
     async search(userId, input, className) {
-        const container = await getImagesContainer()
         const querySpec = {
-            query: "SELECT c.id, c.originalName, c.imageUrl FROM c WHERE c.userId=@userId AND c.className=@className AND (CONTAINS(LOWER(c.originalName), @input) OR ARRAY_CONTAINS(c.tags, @input))",
+            query: "SELECT c.id, c.originalName, c.imageUrl, c.tags FROM c WHERE c.userId=@userId AND c.className=@className AND (CONTAINS(LOWER(c.originalName), @input) OR ARRAY_CONTAINS(c.tags, @input))",
             parameters: [
                 { name: "@input", value: input.toLowerCase() },
                 { name: "@className", value: className },
                 { name: "@userId", value: userId },
             ]
         };
-        const { resources: images } = await container.items.query(querySpec).fetchAll();
-        return images
+        const image = new Image()
+        return await image.find(querySpec)
     }
     async update(id, newName) {
-        const container = await getImagesContainer();
-        const {resource:image} = await container.item(id).read();
-        image.originalName = newName + path.extname(image.originalName)
-        const { resource: updatedImage } = await container.item(id).replace(image);
-        return updatedImage
+        const image = new Image()
+        const updateImage = await image.get(id);
+        updateImage.originalName = newName + path.extname(updateImage.originalName)
+        return await image.update(id, updateImage)
     }
 }
 

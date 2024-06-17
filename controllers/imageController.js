@@ -7,13 +7,16 @@ const AlbumService = require('../sevices/albumService')
 class ImageController {
     async uploadImages(req, res) {
         try {
+            if (req.files === undefined || req.files.length === 0) {
+                return res.status(400).json({status: 'error', message: 'No files selected or unsupported format!'});
+            }
             const id = req.user.id;
             const email = req.user.email
             const {dbResult, resultData} = await ImageService.upload(id, email, req.files)
-            res.status(200).json({status:'success', data: resultData});
             for (const item of dbResult) {
                 await AlbumService.addOrUpdate(item.resourceBody.className, item.resourceBody.blobName, id, email);
             }
+            res.status(200).json({status:'success', data: resultData});
         } catch (e) {
             console.error(e);
             res.status(500).json({status: 'error', message: e.message})
@@ -21,8 +24,9 @@ class ImageController {
     }
     async getImage(req, res) {
         try {
+            const userId = req.user.id;
             const id = req.params.id
-            const image = await ImageService.get(id)
+            const image = await ImageService.get(id, userId)
             return res.status(200).json({status: 'success', image: image})
         } catch (e) {
             console.error(e);
